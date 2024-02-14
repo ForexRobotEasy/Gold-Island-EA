@@ -1,0 +1,68 @@
+
+// Gold Island EA - Expert Advisor for automated Forex trading
+// Developer: Forex Robot Easy Team
+// Developer's site: forexroboteasy.com
+
+// Risk management feature to adjust risk level as a percentage of total balance
+double riskPercentage = 1.0; // Default risk level is set to 1% of total balance
+
+// Take profit points to close trades at a specific profit level
+int takeProfit = 100; // Default take profit is set to 100 points
+
+// Martingale strategy parameters
+double martingaleMultiplier = 2.0; // Martingale multiplier for increasing trade size after a loss
+double martingaleDivisor = 2.0; // Martingale divisor for decreasing trade size after a win
+
+void OnTick()
+{
+    double accountBalance = AccountInfoDouble(ACCOUNT_BALANCE); // Get the current account balance
+
+    // Calculate the risk amount based on the risk percentage
+    double riskAmount = accountBalance * riskPercentage / 100.0;
+
+    // Calculate the trade size based on the risk amount
+    double tradeSize = riskAmount / (SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE) * SymbolInfoDouble(_Symbol, SYMBOL_TRADE_CONTRACT_SIZE));
+
+    // Check if the trade size is greater than zero
+    if (tradeSize > 0)
+    {
+        // Place the market order
+        bool result = OrderSend(_Symbol, OP_BUY, tradeSize, Ask, 0, 0, 0, 'Buy Order', 0, 0, Green);
+
+        // Check if the order was placed successfully
+        if (result)
+        {
+            // Calculate the take profit level based on the trade size and take profit points
+            double takeProfitLevel = NormalizeDouble(Ask + takeProfit * SymbolInfoDouble(_Symbol, SYMBOL_POINT), SymbolInfoInteger(_Symbol, SYMBOL_DIGITS));
+
+            // Set the take profit level for the order
+            OrderTakeProfit(OrderSelect(_Ticket, SELECT_BY_TICKET), takeProfitLevel);
+        }
+    }
+}
+
+void OnTrade()
+{
+    // Check if there are any open orders
+    if (OrdersTotal() > 0)
+    {
+        // Get the last order
+        int lastOrder = OrdersTotal() - 1;
+
+        // Get the type of the last order
+        int orderType = OrderType(OrderSelect(lastOrder, SELECT_BY_POS, MODE_TRADES));
+
+        // Check if the last order was a loss
+        if (orderType == OP_SELL && OrderProfit() < 0)
+        {
+            // Increase the trade size for the next order
+            tradeSize *= martingaleMultiplier;
+        }
+        // Check if the last order was a win
+        else if (orderType == OP_SELL && OrderProfit() > 0)
+        {
+            // Decrease the trade size for the next order
+            tradeSize /= martingaleDivisor;
+        }
+    }
+}
